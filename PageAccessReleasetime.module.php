@@ -9,9 +9,9 @@ class PageAccessReleasetime extends WireData implements Module {
 
 	public static function getModuleInfo() {
 		return array(
-			'title' => 'Page Access Releasetime',
-			'version' => '1.0.0',
-			'summary' => 'Enables you to set a start- and end-time for the release of pages. Prevents unreleased pages from being displayed.',
+			'title' => __('Page Access Releasetime'),
+			'version' => '1.0.1',
+			'summary' => __('Enables you to set a start- and end-time for the release of pages. Prevents unreleased pages from being displayed.'),
 			'singular' => true,
 			'autoload' => true,
 			'icon' => 'hourglass-half',
@@ -25,7 +25,7 @@ class PageAccessReleasetime extends WireData implements Module {
 		$field = new Field();
 		$field->type = $this->modules->get("FieldtypeCheckbox");
 		$field->name = 'releasetime_start_activate';
-		$field->label = 'Activate Releasetime from?';
+		$field->label = $this->_('Activate Releasetime from?');
 		$field->tags = self::module_tags;
 		$field->flags = $flags;
 		$field->save();
@@ -33,12 +33,12 @@ class PageAccessReleasetime extends WireData implements Module {
 		$field = new Field();
 		$field->type = $this->modules->get("FieldtypeDatetime");
 		$field->name = 'releasetime_start';
-		$field->label = 'Release from:';
+		$field->label = $this->_('Release from:');
 		$field->tags = self::module_tags;
 		$field->flags = $flags;
-		$field->dateInputFormat = 'd.m.Y';
+		$field->timeInputSelect = true;
 		$field->timeInputFormat = 'H:i:s';
-		$field->datepicker = true;
+		$field->datepicker = InputfieldDatetime::datepickerFocus;
 		$field->defaultToday = true;
 		$field->showIf = 'releasetime_start_activate=1';
 		$field->requiredIf = 'releasetime_start_activate=1';
@@ -47,7 +47,7 @@ class PageAccessReleasetime extends WireData implements Module {
 		$field = new Field();
 		$field->type = $this->modules->get("FieldtypeCheckbox");
 		$field->name = 'releasetime_end_activate';
-		$field->label = 'Activate Releasetime to?';
+		$field->label = $this->_('Activate Releasetime to?');
 		$field->tags = self::module_tags;
 		$field->flags = $flags;
 		$field->save();
@@ -55,19 +55,18 @@ class PageAccessReleasetime extends WireData implements Module {
 		$field = new Field();
 		$field->type = $this->modules->get("FieldtypeDatetime");
 		$field->name = 'releasetime_end';
-		$field->label = 'Release to:';
+		$field->label = $this->_('Release to:');
 		$field->tags = self::module_tags;
 		$field->flags = $flags;
-		$field->dateInputFormat = 'd.m.Y';
+		$field->timeInputSelect = true;
 		$field->timeInputFormat = 'H:i:s';
-		$field->datepicker = true;
-		$field->defaultToday = true;
+		$field->datepicker = InputfieldDatetime::datepickerFocus;
 		$field->showIf = 'releasetime_end_activate=1';
 		$field->requiredIf = 'releasetime_end_activate=1';
 		$field->save();
 
 		$permission = $this->wire('permissions')->add(self::permissionname);
-		$permission->title = 'Can see pages that are not yet released.';
+		$permission->title = $this->_('Can see pages that are not yet released.');
 		$permission->save();
 	}
 
@@ -150,7 +149,7 @@ class PageAccessReleasetime extends WireData implements Module {
 	public function hookProcessPageViewSendFile($e) {
 		$page = $e->arguments[0];
 		if(!$this->canUserSee($page)) {
-			throw new Wire404Exception('File not found');
+			throw new Wire404Exception($this->_('File not found'));
 		}
 	}
 

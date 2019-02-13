@@ -56,6 +56,12 @@ Additionally we hook into `ProcessPageEdit::buildForm` to add the PageAccessRele
 ## Limitations
 In the current version, releasetime-protected pages will appear in `wire('pages')->find()` queries. If you want to display a list of pages, where pages could be releasetime-protected, you should double-check with `$page->viewable()` wether the page can be accessed. `$page->viewable()` returns false, if the page is not released yet.
 
+To filter unreleased pages, add the `PageAccessReleasetime::selector` to your selector:
+
+```php
+$onlyReleasedPages = wire('pages')->find('template.name=news, ' . PageAccessReleasetime::selector);
+```
+
 If you have an idea how unreleased pages can be filtered out of ProcessWire selector queries, feel free to write an issue, comment or make a pull request! 
 
 ## Versioning

@@ -1,16 +1,19 @@
 <?php
 namespace ProcessWire;
 
-class PageAccessReleasetime extends WireData implements Module {
+class PageAccessReleasetime extends WireData implements Module, ConfigurableModule {
 
 	const module_tags = 'Releasetime';
 	const fieldnames = array('releasetime_start_activate', 'releasetime_start', 'releasetime_end_activate', 'releasetime_end');
 	const permissionname = 'page-view-not-released';
 
+	// Add this selector to your query, to filter unreleased pages:
+	const selector = "or1=(releasetime_start_activate=0), or1=(releasetime_start=''), or1=(releasetime_start<=now), or2=(releasetime_end_activate=0), or2=(releasetime_end=''), or2=(releasetime_end>=now)";
+
 	public static function getModuleInfo() {
 		return array(
 			'title' => __('Page Access Releasetime'),
-			'version' => '1.0.1',
+			'version' => '1.0.2',
 			'summary' => __('Enables you to set a start- and end-time for the release of pages. Prevents unreleased pages from being displayed.'),
 			'singular' => true,
 			'autoload' => true,
@@ -20,7 +23,7 @@ class PageAccessReleasetime extends WireData implements Module {
 	}
 
 	public function ___install(){
-		$flags = Field::flagGlobal + Field::flagSystem + Field::flagAccessAPI + Field::flagAutojoin;
+		$flags = Field::flagSystem + Field::flagAccessAPI + Field::flagAutojoin;
 
 		$field = new Field();
 		$field->type = $this->modules->get("FieldtypeCheckbox");
@@ -71,25 +74,90 @@ class PageAccessReleasetime extends WireData implements Module {
 	}
 
 	public function ___uninstall(){
+		// Remove releasetime-fields:
 		foreach(self::fieldnames as $fieldname){
-			$feld = $this->wire('fields')->get($fieldname);
-			if(!($feld instanceof Field) || $feld->name != $fieldname) continue;
+			$field = $this->wire('fields')->get($fieldname);
+			if(!($field instanceof Field) || $field->name != $fieldname) continue;
 
-			$feld->flags = Field::flagSystemOverride;
-			$feld->flags = 0;
-			$feld->save();
+			$field->flags = Field::flagSystemOverride;
+			$field->flags = 0;
+			$field->save();
 
 			foreach($this->wire('templates') as $template){
 				if(!$template->hasField($fieldname)) continue;
-				$template->fieldgroup->remove($feld);
+				$template->fieldgroup->remove($field);
 				$template->fieldgroup->save();
 			}
 
-			$this->wire('fields')->delete($feld);
+			$this->wire('fields')->delete($field);
 		}
+
+		// remove permission:
+		$permission = wire('permissions')->get(self::permissionname);
+		if($permission instanceof Permission && $permission->id){
+			$this->wire('permissions')->delete($permission);
+		}
+
+	}
+
+	protected static $defaults = array(
+		'autoAdd' => 0,
+		'templates' => []
+	);
+
+	public static function getModuleConfigInputfields(array $data) {
+		$form  = new InputfieldWrapper();
+		$moduleconfig = wire('modules')->getModuleConfigData('PageAccessReleasetime');
+		$data = array_merge(self::$defaults, $data);
+
+		$f = new InputfieldCheckbox();
+		$f->attr('id+name', 'autoAdd');
+		$f->label =  __('Mode');
+		$f->label2 =  __('Add to all templates automatically');
+		$f->description =  __('Enabling this feature will add the fields to every page automatically.');
+		$f->value = $data['autoAdd'];
+		$checked = isset($data['autoAdd']) && $data['autoAdd'] == '' ?  '' : 'checked';
+		$f->attr('checked', $checked);
+		$form->add($f);
+
+		$f = new InputfieldAsmSelect();
+		$f->attr('id+name', 'templates');
+		$f->label =  __('Templates');
+		$f->description = __("Select all templates that should get the releasetime fields.");
+		$f->showIf = 'autoAdd=0';
+
+		// Dynamically check which templates have all releasetime-fields and check them afterwards:
+		$templatesWithFields = array();
+
+		foreach(wire('templates') as $template) {
+			// Exclude system templates:
+			if($template->flags & Template::flagSystem) continue;
+		    $f->addOption($template->id, $template->getLabel());
+
+		    // Check, if the template already has all releasetime-fields:
+		    $allFieldsExistFlag = true;
+		    foreach(self::fieldnames as $fieldname){
+		    	if(!$template->hasField($fieldname)){
+		    		$allFieldsExistFlag = false;
+		    	}
+		    }
+
+		    if($allFieldsExistFlag){
+		    	$templatesWithFields[] = $template->id;
+		    }
+		}
+
+		$data['templates'] = $templatesWithFields;
+		$f->attr('value', $data['templates']);
+
+		$form->add($f);
+
+		return $form;
 	}
 
 	public function init() {
+		$this->addHookAfter("Modules::saveConfig", $this, "hookModulesSaveConfig");
+
 		// Move releasetime-fields to settings-tab
 		$this->addHookAfter("ProcessPageEdit::buildForm", $this, "moveFieldToSettings");
 
@@ -115,7 +183,7 @@ class PageAccessReleasetime extends WireData implements Module {
 	 * @param HookEvent $event
 	 *
 	 */
-	public function hookPageViewable($event) {
+	public function hookPageViewable(HookEvent $event) {
 		$page = $event->object;
 		$viewable = $event->return;
 
@@ -132,10 +200,10 @@ class PageAccessReleasetime extends WireData implements Module {
 	 *
 	 * @see https://processwire.com/talk/topic/15622-pagefilesecure-and-pageispublic-hook-not-working/
 	 */
-	public function hookPageIsPublic($e) {
-		$page = $e->object;
-		if($e->return && $this->isReleaseTimeSet($page)) {
-			$e->return = false;
+	public function hookPageIsPublic(HookEvent $event) {
+		$page = $event->object;
+		if($event->return && $this->isReleaseTimeSet($page)) {
+			$event->return = false;
 		}
 	}
 
@@ -146,8 +214,8 @@ class PageAccessReleasetime extends WireData implements Module {
 	 *
 	 * @see https://processwire.com/talk/topic/15622-pagefilesecure-and-pageispublic-hook-not-working/
 	 */
-	public function hookProcessPageViewSendFile($e) {
-		$page = $e->arguments[0];
+	public function hookProcessPageViewSendFile(HookEvent $event) {
+		$page = $event->arguments[0];
 		if(!$this->canUserSee($page)) {
 			throw new Wire404Exception($this->_('File not found'));
 		}
@@ -217,23 +285,100 @@ class PageAccessReleasetime extends WireData implements Module {
 	}
 
 	/**
+	 * Adds releasetime-fields to the wanted templates after module's save
+	 * @param  HookEvent $event
+	 */
+	public function hookModulesSaveConfig(HookEvent $event){
+		// Get the object the event occurred on, if needed
+		$modules = $event->object;
+
+		$data = $event->arguments(1);
+
+		// If auto-add is activated: Make fields global
+		if(isset($data['autoAdd']) && $data['autoAdd']){
+			foreach(self::fieldnames as $fieldname){
+				$field = $this->wire('fields')->get($fieldname);
+				if(!($field instanceof Field) || $field->name != $fieldname){
+					continue;
+				}
+
+				if($field->hasFlag(Field::flagGlobal)){
+					// Field is already global
+					continue;
+				}
+
+				$field->addFlag(Field::flagGlobal);
+				$field->save();
+			}
+			return;
+		}
+
+		// auto-add is not activated. The fields should not be global an will be added manually.
+		foreach(self::fieldnames as $fieldname){
+			$field = $this->wire('fields')->get($fieldname);
+			if(!($field instanceof Field) || $field->name != $fieldname){
+				continue;
+			}
+
+			if(!$field->hasFlag(Field::flagGlobal)){
+				// Field is not global
+				continue;
+			}
+
+			$field->removeFlag(Field::flagGlobal);
+			$field->save();
+		}
+
+		$savedTemplates = array();
+		if(isset($data['templates']) && is_array($data['templates'])){
+			$savedTemplates = $data['templates'];
+		}
+
+		foreach(wire('templates') as $template){
+			if(array_search($template->id, $savedTemplates) !== false){
+
+				// Fields should be added
+				foreach(self::fieldnames as $fieldname){
+					if($template->hasField($fieldname)){
+						// Field is already there
+						continue;
+					}
+
+					$template->fieldgroup->add($fieldname);
+					$template->fieldgroup->save();
+				}
+				continue;
+			}
+
+			// Fields should be removed
+			foreach(self::fieldnames as $fieldname){
+				if(!$template->hasField($fieldname)){
+					// Field was not added
+					continue;
+				}
+
+				$template->fieldgroup->remove($fieldname);
+				$template->fieldgroup->save();
+			}
+		}
+	}
+
+	/**
 	 * Moves the releasetime-fields to the settings-tab
 	 * @param  HookEvent $event
 	 */
 	public function moveFieldToSettings(HookEvent $event) {
 		$form = $event->return;
 
+		$settings = $form->find("id=ProcessPageEditSettings")->first();
+		if(!$settings) return;
+
 		foreach(self::fieldnames as $fieldname){
 			$field = $form->find("name=".$fieldname)->first();
+			if(!$field) continue;
 
-			if($field) {
-				$settings = $form->find("id=ProcessPageEditSettings")->first();
-
-				if($settings) {
-					$form->remove($field);
-					$settings->append($field);
-				}
-			}
+			$form->remove($field);
+			$settings->append($field);
 		}
 	}
 

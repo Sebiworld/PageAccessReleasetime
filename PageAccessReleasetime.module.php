@@ -13,12 +13,14 @@ class PageAccessReleasetime extends WireData implements Module, ConfigurableModu
 	public static function getModuleInfo() {
 		return array(
 			'title' => __('Page Access Releasetime'),
-			'version' => '1.0.2',
+			'author' => 'Sebastian Schendel',
+			'version' => '1.0.3',
 			'summary' => __('Enables you to set a start- and end-time for the release of pages. Prevents unreleased pages from being displayed.'),
 			'singular' => true,
 			'autoload' => true,
 			'icon' => 'hourglass-half',
 			'requires' => array('PHP>=5.5.0', 'ProcessWire>=3.0.0'),
+			'href' => 'https://processwire.com/talk/topic/20852-module-page-access-releasetime/'
 		);
 	}
 

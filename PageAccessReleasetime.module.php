@@ -14,7 +14,7 @@ class PageAccessReleasetime extends WireData implements Module, ConfigurableModu
 		return array(
 			'title' => __('Page Access Releasetime'),
 			'author' => 'Sebastian Schendel',
-			'version' => '1.0.3',
+			'version' => '1.0.4',
 			'summary' => __('Enables you to set a start- and end-time for the release of pages. Prevents unreleased pages from being displayed.'),
 			'singular' => true,
 			'autoload' => true,
@@ -134,13 +134,14 @@ class PageAccessReleasetime extends WireData implements Module, ConfigurableModu
 		foreach(wire('templates') as $template) {
 			// Exclude system templates:
 			if($template->flags & Template::flagSystem) continue;
-		    $f->addOption($template->id, $template->getLabel());
+		    $f->addOption($template->id, $template->getLabel() . ' (' . $template->name . ')');
 
 		    // Check, if the template already has all releasetime-fields:
 		    $allFieldsExistFlag = true;
 		    foreach(self::fieldnames as $fieldname){
 		    	if(!$template->hasField($fieldname)){
 		    		$allFieldsExistFlag = false;
+		    		break;
 		    	}
 		    }
 
@@ -165,6 +166,9 @@ class PageAccessReleasetime extends WireData implements Module, ConfigurableModu
 
 		// Prevent unreleased pagse from being viewed
 		$this->addHook('Page::viewable', $this, 'hookPageViewable');
+
+		// Unreleased pages cannot be listed:
+		$this->addHook('Page::listable', $this, 'hookPageListable');
 
 		// Manage access to files ($config->pagefileSecure has to be true)
 		$this->addHookAfter('Page::isPublic', $this, 'hookPageIsPublic');
@@ -194,6 +198,17 @@ class PageAccessReleasetime extends WireData implements Module, ConfigurableModu
 			$viewable = $this->canUserSee($page);
 		}
 		$event->return = $viewable;
+	}
+
+	public function hookPageListable(HookEvent $event) {
+		$page = $event->object;
+		$listable = $event->return;
+
+		if($listable){
+			// If the page would be listable, additionally check Releasetime and User-Permission
+			$listable = $this->canUserSee($page);
+		}
+		$event->return = $listable;
 	}
 
 	/**

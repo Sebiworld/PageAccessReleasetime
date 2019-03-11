@@ -2,7 +2,9 @@
 Enables you to set a start- and end-time for the release of pages. Prevents unreleased pages from being displayed.
 
 ProcessWire-Module: [http://modules.processwire.com/modules/page-access-releasetime/](http://modules.processwire.com/modules/page-access-releasetime/)
+
 Support-Forum: [https://processwire.com/talk/topic/20852-module-page-access-releasetime/](https://processwire.com/talk/topic/20852-module-page-access-releasetime/)
+
 Github-Repo: [https://github.com/Sebiworld/PageAccessReleasetime](https://github.com/Sebiworld/PageAccessReleasetime)
 
 ## Usage
